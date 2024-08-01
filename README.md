@@ -17,7 +17,16 @@ Code accompanying the paper [Multi-modal Gaussian Process Variational Autoencode
 - scipy 1.9.0
 - scikit-learn 1.1.1
 ```
-## To run Fourier MM-GPVAE with MNIST dataset:
+## To run Fourier MM-GPVAE with MNIST without any flags:
+
+1) Download the full MNIST dataset from the internet. Once you have the dataset, put its path to the ```PATH``` variable in the data_generator.py. 
+2) Create a python environment with the packages listed above.
+3) Generate the modified MNIST data using data_generator.py, make sure to set ```NO_ZOOM``` to False.
+4) Make sure that you uncommented the MMGPVAE hyperparameters in hyperparams.py
+5) Run mmgpvae_without_flags.py
+
+
+## To run Fourier MM-GPVAE and its varients with MNIST dataset:
 
 1) Download the full MNIST dataset from the internet. Once you have the dataset, put its path to the ```PATH``` variable in the data_generator.py. 
 2) Create a python environment with the packages listed above.
@@ -38,18 +47,17 @@ Code accompanying the paper [Multi-modal Gaussian Process Variational Autoencode
 - **data_generator.py**: This will apply the modifications to the MNIST digit to be used in the MMGPVAE.ipynb and GPVAE.ipynb. To get the data for MM-GPVAE, run it as usual, if you would like to turn off the 'zoom', comment out the specified line ```img = clipped_zoom(img, abs(np.squeeze(GP_zooms[n, angle_img_idx])))```
 - **GP_fourier**: You don't need to run anything in this folder, it is just a dependency for the MMGPVAE and GPVAE notebook.
 - **train.py, misc.py, hyperparams.py, neural_nets.py**: All of these contain the dependencies to run MMGPVAE.ipynb and GPVAE.ipynb.
-
+- **mmgpvae_without_flags**: This is similar to MMGPVAE.ipynb but in a single python script and without any flags (e.g. no GPFA or GPVAE training options)
 
 ## Citation
 
 If you use any part of this code in your research, please cite our [paper]([https://arxiv.org/abs/1810.11738](https://openreview.net/pdf?id=aGH43rjoe4)):
 
 ```
-@article{gondur2023multi,
+@inproceedings{gondurmulti,
   title={Multi-modal Gaussian Process Variational Autoencoders for Neural and Behavioral Data},
   author={Gondur, Rabia and Sikandar, Usama Bin and Schaffer, Evan and Aoi, Mikio Christian and Keeley, Stephen L},
-  journal={The Twelfth International Conference on Learning Representations},
-  year={2024}
+  booktitle={The Twelfth International Conference on Learning Representations}
 }
 ```
 
