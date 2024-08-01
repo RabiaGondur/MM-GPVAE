@@ -594,6 +594,9 @@ def regressions(net, n_encode, n_decode, data_load, BATCH,
             axs[2,i].spines['top'].set_visible(False)
 
 
+    plt.show()
+
+
 
 
 
@@ -605,11 +608,11 @@ class TimePointCustomDataset(Dataset):
         self.neural_rates = torch.from_numpy(all_data.item()['rates'])
         self.spikes = torch.from_numpy(all_data.item()['spikes'])
         self.trials = torch.from_numpy(all_data.item()['imgs'])
-        print(self.trials.shape)
+        # print(self.trials.shape)
         self.gp1 = torch.from_numpy(all_data.item()['GPs'][:,0])
         self.gp2 = torch.from_numpy(all_data.item()['GPs'][:,1])
         self.zoom = torch.from_numpy(np.squeeze(all_data.item()['GP_zooms']))
-        print(self.gp2.shape)
+        # print(self.gp2.shape)
         
         self.transform = transform
         self.target_transform = target_transform
