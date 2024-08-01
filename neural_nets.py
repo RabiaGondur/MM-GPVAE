@@ -13,12 +13,11 @@ np.random.seed(my_seed)
 
 
 class GPVAE(nn.Module):
-    def __init__(self, Nlat_shared= N_shared,featureDim=256, zimg_Dim=N_shared, n_neurons = N_NEURONS,condthresh = 1e8, y = None, minlens= None, vy=1000, Fourier = False):#featureDim = 64*16*16 
+    def __init__(self, featureDim=256, zimg_Dim=N_shared, n_neurons = N_NEURONS,condthresh = 1e8,  minlens= None, vy=1000, Fourier = False):#featureDim = 64*16*16 
         torch.manual_seed(my_seed)
         np.random.seed(my_seed)
      
         super(GPVAE, self).__init__()
-        self.Nlat_shared = Nlat_shared
         self.N = TIME_POINTS # time
         self.K = PIXEL  #pixels
         self.zimg_Dim = zimg_Dim
@@ -140,7 +139,7 @@ class GPVAE(nn.Module):
 
 class Spike_Encode(nn.Module):
     
-    def __init__(self, zDim=N_lats_spikes, n_neurons= N_NEURONS, condthresh = 1e8, y = None, minlens= None, Fourier = False):
+    def __init__(self, zDim=N_lats_spikes, n_neurons= N_NEURONS, condthresh = 1e8, minlens= None, Fourier = False):
         super(Spike_Encode, self).__init__()
         torch.manual_seed(my_seed)
         np.random.seed(my_seed)
@@ -193,15 +192,15 @@ class Spike_Encode(nn.Module):
 ## Neural Decoder
 ###############################################################################
 class Spike_Decode(nn.Module):
-    def __init__(self, meanrates, Nlat_shared= N_shared,featureDim=256, zDim=1, bothDim = 2, n_neurons = N_NEURONS, condthresh = 1e8, y = None, minlens= None, Fourier = False):
+    def __init__(self, meanrates, featureDim=256, zDim=1, n_neurons = N_NEURONS, condthresh = 1e8, minlens= None, Fourier = False):
         super(Spike_Decode, self).__init__()
         torch.manual_seed(my_seed)
         np.random.seed(my_seed)
-        self.Nlat_shared = Nlat_shared
+
         self.N = TIME_POINTS
         self.K = PIXEL
         self.zDim = zDim
-        self.bothDim = bothDim
+       
         
         if Fourier:
             nxc_ext = .2
@@ -237,9 +236,8 @@ class Spike_Decode(nn.Module):
 ## Behavior Encoder + Decoder
 ###############################################################################
 class Behavior_Encoder_Decoder(nn.Module):
-    def __init__(self, Nlat_shared= N_shared,featureDim=256, zimg_Dim=N_shared, n_neurons = N_NEURONS,condthresh = 1e8, y = None, minlens= None, vy=100, Fourier = False):
+    def __init__(self,featureDim=256, zimg_Dim=N_shared, n_neurons = N_NEURONS,condthresh = 1e8, minlens= None, vy=100, Fourier = False):
         super(Behavior_Encoder_Decoder, self).__init__()
-        self.Nlat_shared = Nlat_shared
         self.N = TIME_POINTS # time
         self.K = PIXEL  #pixels
         self.zimg_Dim = zimg_Dim
