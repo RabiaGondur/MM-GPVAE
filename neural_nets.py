@@ -27,8 +27,6 @@ class GPVAE(nn.Module):
         self.vy = nn.Parameter(torch.Tensor([vy]), requires_grad=True)
       
 
-        
-        
         self.enc1 = nn.Linear(PIXEL, 784)
         self.enc2 = nn.Linear(784, 512)
         self.exper1 = nn.Linear(512, featureDim)
@@ -197,22 +195,6 @@ class Spike_Decode(nn.Module):
         torch.manual_seed(my_seed)
         np.random.seed(my_seed)
 
-        self.N = TIME_POINTS
-        self.K = PIXEL
-        self.zDim = zDim
-       
-        
-        if Fourier:
-            nxc_ext = .2
-            if minlens == None:
-                print('specify a minlens')
-         
-            [By, wwnrm, Bffts, nxcirc] = gpf.comp_fourier.conv_fourier_mult_neuron(y, self.N, minlens,n_neurons,nxcirc = np.array([self.N+nxc_ext*self.N]),condthresh = condthresh)
-            self.Bf = Bffts[0]
-            self.N_four = Bffts[0].shape[0]
-            self.nxcirc = nxcirc
-            self.wwnrm = torch.Tensor(wwnrm)
-
         self.dec3 = nn.Linear(zDim, n_neurons)
         self.dec3.bias = nn.Parameter(torch.log(torch.Tensor(meanrates))) 
        
@@ -223,10 +205,9 @@ class Spike_Decode(nn.Module):
     
     def pois_loglike(self, lambda_hat, spikes): 
         p_nll = - ( -(torch.exp(lambda_hat)) -torch.lgamma(spikes + 1) +  lambda_hat * spikes).sum([1,2])
-        return p_nll
-    
+      
 
-    def forward(self, z, spikes,  Fourier = False):
+    def forward(self, z, spikes,  Fourier = True):
         lambda_hat= self.decoder_lambda(z)
         neural_loss = self.pois_loglike(lambda_hat, spikes)       
         return neural_loss,lambda_hat
@@ -327,4 +308,112 @@ class Behavior_Encoder_Decoder(nn.Module):
 
 
 
+###############################################################################
+## Behavior Refactored (Encoder and Decoder separated)
+## The classes below are just separated version of the Behavior_Encoder_Decoder() class
+## and is compatible with train_mmgpvae_main_alternative() function in train.py
+## if you want to work with this, run mmgpvae_alternative.py() note that
+## the learning rate is slightly different to optimize the performance
 
+###############################################################################
+## Behavior Encoder 
+###############################################################################
+class Behavior_Encoder(nn.Module):
+    def __init__(self,featureDim=256, zimg_Dim=N_shared, n_neurons = N_NEURONS,condthresh = 1e8, minlens= None, vy=100, Fourier = False):
+        super(Behavior_Encoder, self).__init__()
+        self.N = TIME_POINTS # time
+        self.K = PIXEL  #pixels
+        self.zimg_Dim = zimg_Dim
+        self.len_sc = nn.Parameter(torch.Tensor([30]), requires_grad=True)
+    
+        self.vy = nn.Parameter(torch.Tensor([vy]), requires_grad=True)
+      
+        self.enc1 = nn.Linear(PIXEL, 784)
+        self.enc2 = nn.Linear(784, 512)
+        self.exper1 = nn.Linear(512, featureDim)
+        self.exper2 = nn.Linear(featureDim, featureDim)
+        
+        if Fourier:
+            nxc_ext = .2
+            if minlens == None:
+                print('specify a minlens')
+            [By, wwnrm, Bffts, nxcirc] = gpf.comp_fourier.conv_fourier_mult_neuron(y, self.N, minlens,n_neurons,nxcirc = np.array([self.N+nxc_ext*self.N]),condthresh = condthresh)
+            self.Bf = Bffts[0]
+            self.N_four = Bffts[0].shape[0]
+            self.nxcirc = nxcirc
+            self.wwnrm = torch.Tensor(wwnrm)
+            
+            self.encMeanFour = nn.Linear(self.N, self.N_four)
+            self.encVarFour = nn.Linear(self.N, self.N_four, bias = False)
+
+        self.encFC1 = nn.Linear(featureDim, zimg_Dim)
+        self.encFC2 = nn.Linear(featureDim, zimg_Dim)
+
+    def encode(self, x, Fourier = False):      
+        x = F.elu(self.enc1(x))
+        x = F.elu(self.enc2(x))
+        x = F.elu(self.exper1(x))
+        x = F.elu(self.exper2(x))
+        zm = self.encFC1(x)
+        zs = self.encFC2(x)
+        return zm, zs
+
+
+    def sample(self, zm, zs, eps):
+        eps = torch.randn_like(zs)        
+        z = zm + eps * torch.exp(zs) 
+        return z
+    def gp_make_cov(self, nxcirc= None, wwnrm= None, rho = 1, l_scale = torch.Tensor([15]), eps = 1e-4, Fourier = False):
+        
+        if Fourier:
+            K_cov = gpf.mkcovs.mkcovdiag_ASD_wellcond(self.len_sc, 1, nxcirc, wwnrm = wwnrm,addition = eps)
+
+        else:
+            M1 = torch.arange(self.N).unsqueeze(0)-torch.arange(self.N).unsqueeze(1)
+            K_cov = torch.exp(-torch.square(M1)/(2*torch.square(self.len_sc))) + eps*torch.eye(self.N)
+
+        return K_cov* rho
+    def forward(self, x, Fourier = False):
+        zm, zs = self.encode(x)      
+        return zm, zs
+
+
+###############################################################################
+## Behavior Decoder 
+###############################################################################
+class Behavior_Decoder(nn.Module):
+    def __init__(self,featureDim=256, zimg_Dim=N_shared, n_neurons = N_NEURONS,condthresh = 1e8, minlens= None, vy=100, Fourier = False):
+        super(Behavior_Decoder, self).__init__()
+        self.N = TIME_POINTS # time
+        self.K = PIXEL  #pixels
+        self.zimg_Dim = zimg_Dim
+        self.len_sc = nn.Parameter(torch.Tensor([30]), requires_grad=True)
+    
+        self.vy = nn.Parameter(torch.Tensor([vy]), requires_grad=True)
+
+        self.decFC2 = nn.Linear(zimg_Dim, featureDim)
+        self.dexper1 = nn.Linear(featureDim, featureDim)
+        self.dexper2 = nn.Linear(featureDim, 512)
+        self.dec2 = nn.Linear(512, 784)
+        self.dec1 = nn.Linear(784, PIXEL)
+
+
+
+    def decoder(self, z):
+        x = F.elu(self.decFC2(z))
+        x = F.elu(self.dexper1(x))
+        x = F.elu(self.dexper2(x))
+        x = F.elu(self.dec2(x))
+        x = F.elu(self.dec1(x))
+        return x
+    
+    def nll(self, x, x_hat):
+        mse = ((x_hat - x) ** 2).view(x.shape[0], self.N, PIXEL).sum((2), True).sum(1)     
+        nll = mse / (2 * self.vy)
+        nll += 0.5 *self.N* torch.log(self.vy) * PIXEL
+        return nll, mse
+
+    def forward(self, z, x, Fourier = True):
+        x_hat = self.decoder(z)
+        recon_term, mse = self.nll(x, x_hat)       
+        return x_hat, recon_term
