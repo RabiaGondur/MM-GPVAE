@@ -2,6 +2,7 @@
 
 Code accompanying the paper [Multi-modal Gaussian Process Variational Autoencoders for Neural and Behavioral Data](https://openreview.net/pdf?id=aGH43rjoe4) [1].
 
+
 <p align="center">
   <img src="imgs/mmgpvae.png" alt="mmgpvae" width="80%">
 </p>
@@ -17,28 +18,23 @@ Code accompanying the paper [Multi-modal Gaussian Process Variational Autoencode
 - scipy 1.9.0
 - scikit-learn 1.1.1
 ```
-## To run Fourier MM-GPVAE with MNIST without any flags:
 
-1) Download the full MNIST dataset from the internet. Once you have the dataset, put its path to the ```PATH``` variable in the data_generator.py. 
-2) Create a python environment with the packages listed above.
-3) Generate the modified MNIST data using data_generator.py, make sure to set ```NO_ZOOM``` to False.
-4) Make sure that you uncommented the MMGPVAE hyperparameters in hyperparams.py
-5) Run mmgpvae_without_flags.py
+**Notes**: 
+- Before you run any versions, download the full MNIST dataset from the internet. Once you have the dataset, put its path to the ```PATH``` variable in the data_generator.py. 
+- The original MM-GPVAE from our paper has one single class for the behavior modality and two classes (encoder and decoder) for the neural modality. However, we created an alternative, refactored version of MM-GPVAE that also has the encoder and decoder of the behavior modality separated. If you would like to run this version you can run ```mmgpvae_alternative.py```
+- If you have any questions, email gondur at cshl.edu
+
+## To run MM-GPVAE with MNIST without any flags (the main version):
+1) Generate the modified MNIST data using data_generator.py, make sure to set ```NO_ZOOM``` to False.
+2) Make sure that you uncommented the MMGPVAE hyperparameters in hyperparams.py
+3) Run mmgpvae_main.py
 
 
-## To run Fourier MM-GPVAE and its varients with MNIST dataset:
+## To run refactored MM-GPVAE (behavior encoder and decoder separated) with MNIST without any flags:
 
-1) Download the full MNIST dataset from the internet. Once you have the dataset, put its path to the ```PATH``` variable in the data_generator.py. 
-2) Create a python environment with the packages listed above.
-3) Generate the modified MNIST data using data_generator.py, make sure to set ```NO_ZOOM``` to False. (The data_generator.py creates a file with a default name that already matches with the file path in the dataloder of the MMGPVAE notebook. You can change the file name in the data_generator.py, if you do, you will have to change the path to the data (```DATA_PATH```) in the MMGPVAE notebook.)
-4) Run MMGPVAE.ipynb
-
-## To run Fourier GPVAE with MNIST dataset:
-
-1) Download the full MNIST dataset from the internet. Once you have the dataset, put its path to the ```PATH``` variable in the data_generator.py. 
-2) Create a python environment with the packages listed above.
-3) Generate the modified MNIST data using data_generator.py, make sure to set ```NO_ZOOM``` to True. (The data_generator.py creates a file with a default name that already matches with the file path in the dataloder of the GPVAE notebook. You can change the file name in the data_generator.py, if you do, you will have to change the path to the data (```DATA_PATH```) in the GPVAE notebook.)
-4) Run GPVAE.ipynb 
+1) Generate the modified MNIST data using data_generator.py, make sure to set ```NO_ZOOM``` to False.
+2) Make sure that you uncommented the MMGPVAE hyperparameters in hyperparams.py
+3) Run mmgpvae_alternative.py
 
 ## Summary of directory contents:
 
@@ -47,7 +43,22 @@ Code accompanying the paper [Multi-modal Gaussian Process Variational Autoencode
 - **data_generator.py**: This will apply the modifications to the MNIST digit to be used in the MMGPVAE.ipynb and GPVAE.ipynb. To get the data for MM-GPVAE, run it as usual, if you would like to turn off the 'zoom', comment out the specified line ```img = clipped_zoom(img, abs(np.squeeze(GP_zooms[n, angle_img_idx])))```
 - **GP_fourier**: You don't need to run anything in this folder, it is just a dependency for the MMGPVAE and GPVAE notebook.
 - **train.py, misc.py, hyperparams.py, neural_nets.py**: All of these contain the dependencies to run MMGPVAE.ipynb and GPVAE.ipynb.
-- **mmgpvae_without_flags**: This is similar to MMGPVAE.ipynb but in a single python script and without any flags (e.g. no GPFA or GPVAE training options)
+- **mmgpvae_main**: This is similar to MMGPVAE.ipynb but in a single python script and without any flags (e.g. no GPFA or GPVAE training options).
+- **mmgpvae_alternative**: This is similar to mmgpvae_main but the behavior modality separated into encoder and decoder and in a single python script.
+---
+## Below are the previous versions that you can run that allow for GPFA, GPVAE and time domain training:
+
+### To run MM-GPVAE and its varients with MNIST dataset:
+
+1) Generate the modified MNIST data using data_generator.py, make sure to set ```NO_ZOOM``` to False. (The data_generator.py creates a file with a default name that already matches with the file path in the dataloder of the MMGPVAE notebook. You can change the file name in the data_generator.py, if you do, you will have to change the path to the data (```DATA_PATH```) in the MMGPVAE notebook.)
+2) Run MMGPVAE.ipynb
+
+### To run Fourier GPVAE with MNIST dataset:
+
+1) Generate the modified MNIST data using data_generator.py, make sure to set ```NO_ZOOM``` to True. (The data_generator.py creates a file with a default name that already matches with the file path in the dataloder of the GPVAE notebook. You can change the file name in the data_generator.py, if you do, you will have to change the path to the data (```DATA_PATH```) in the GPVAE notebook.)
+2) Run GPVAE.ipynb 
+
+
 
 ## Citation
 
