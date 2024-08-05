@@ -9,6 +9,62 @@ torch.manual_seed(my_seed)
 np.random.seed(my_seed)
 
 
+def return_partitioned_latents(neural_embeds_m, image_embeds_m,
+                               neural_embeds_s, image_embeds_s, N_lats_spikes, N_lats_img,
+                               N_shared):
+    z_m_neurons = neural_embeds_m[:,:,:N_lats_spikes-N_shared] 
+    z_m_img = image_embeds_m[:,:,:N_lats_img-N_shared] 
+
+    z_m_shared = (neural_embeds_m[:,:,N_lats_spikes-N_shared:] + 
+                    image_embeds_m[:,:,N_lats_img-N_shared:])/2
+    
+
+    z_s_neurons = neural_embeds_s[:,:,:N_lats_spikes-N_shared] 
+    z_s_img = image_embeds_s[:,:,:N_lats_img-N_shared] 
+
+
+    z_s_shared = (neural_embeds_s[:,:,N_lats_spikes-N_shared:] + 
+                    image_embeds_s[:,:,N_lats_img-N_shared:])/2
+
+    z_m_tot = torch.cat((z_m_neurons,z_m_shared, z_m_img), dim=2) 
+    z_s_tot = torch.cat((z_s_neurons,z_s_shared, z_s_img), dim=2) 
+
+    return z_m_tot, z_s_tot
+
+def regression_plot_helper(latent, true):
+    z_latent = np.concatenate(latent.detach().numpy(), axis=0)
+    true_trace = np.concatenate(true.detach().numpy(), axis=0)
+
+    z_zoom = true_trace
+    regr_list1 = []
+    regr_list2 = []
+
+    recon_z_const_zoom =np.stack((z_latent.squeeze(), np.ones(np.shape(true_trace))))
+
+
+    W1 = np.linalg.lstsq(recon_z_const_zoom.T, z_zoom.T)[0]
+    new_zoom = (W1.T@(recon_z_const_zoom)).T
+    new_zoom = new_zoom.reshape(true.shape[0],TIME_POINTS,1)
+
+    regr_list2.append(new_zoom)
+
+    regr_list1.append(np.array(regr_list2).squeeze())
+
+    regr_list1  = np.array(regr_list1)
+
+    return regr_list1
+
+
+
+
+
+
+
+
+
+
+
+
 def Fourer_lat_conv(z, enc):
         zm_transposed = torch.transpose(z, 1, 2)
         zm_four = enc(zm_transposed)
@@ -85,20 +141,12 @@ def save_model(net, data, Fourier, model_saved):
         
                 embs_m_img, embs_s_img = net.encode(imgs.float())
 
-
-
                 embs_m_img = Fourer_lat_conv(embs_m_img, net.encMeanFour)
                 embs_s_img = Fourer_lat_conv(embs_s_img, net.encVarFour)
 
             
                 z_m_img = embs_m_img
-            
-
-            
                 z_s_img = embs_s_img
-                
-
-               
                 z_m_tot = z_m_img
                 z_s_tot = z_s_img
                 z_tot = net.sample(z_m_tot, z_s_tot, eps)
@@ -110,9 +158,7 @@ def save_model(net, data, Fourier, model_saved):
                 x_hat = net.decoder(z_tot_time[:, :, -(N_lats_img):])
                
                 x_hat = x_hat.reshape(imgs.shape[0], TIME_POINTS, 36, 36)
-
-
-                
+ 
                 angles.append(angle.detach().numpy())
                 image_z.append(z_m_tot_time[:, :, -(N_lats_img):].detach().numpy())
                 x_hat_end.append(x_hat.detach().numpy())
@@ -124,28 +170,16 @@ def save_model(net, data, Fourier, model_saved):
     
                 embs_m_img, embs_s_img = net.encode(imgs.float())
 
-
-            
                 z_m_img = embs_m_img
-            
-
-            
                 z_s_img = embs_s_img
-                
-
-           
                 z_m_tot = z_m_img
                 z_s_tot = z_s_img
                 z_tot = net.sample(z_m_tot, z_s_tot, eps)
-
-
 
                 x_hat = net.decoder(z_tot[:, :, -(N_lats_img):])
             
                 x_hat = x_hat.reshape(imgs.shape[0], TIME_POINTS, 36, 36)
 
-
-                
                 angles.append(angle.detach().numpy())
                 image_z.append(z_m_tot[:, :, -(N_lats_img):].detach().numpy())
                 x_hat_end.append(x_hat.detach().numpy())
@@ -439,11 +473,8 @@ def regressions(net, n_encode, n_decode, data_load, BATCH,
     neuralRates = []
     sharedGP = []
     neuronGP = []
-
     regr_four = []
-    regr_nofour = []
     regr_four_zoom = []
-    regr_nofour_zoom = []
     regr_n_only = []
     zooms = []
 
@@ -462,8 +493,6 @@ def regressions(net, n_encode, n_decode, data_load, BATCH,
     batch_imgs = images[current_batch]
     batch_angles = angles[current_batch]
     batch_spikes = spikes[current_batch]
-    batch_neuralRates = neuralRates[current_batch]
-    batch_sharedGP = sharedGP[current_batch]
     batch_neuronGP = neuronGP[current_batch]
     batch_zoom = zooms[current_batch]
 
@@ -480,16 +509,11 @@ def regressions(net, n_encode, n_decode, data_load, BATCH,
         embs_m_img = Fourer_lat_conv(embs_m_img, net.encMeanFour)
         embs_s_img = Fourer_lat_conv(embs_s_img, net.encVarFour) 
 
-    z_m_neurons = embs_m_n[:,:,:N_lats_spikes-N_shared]
-    z_m_img = embs_m_img[:,:,:N_lats_img-N_shared] 
-    z_m_shared = (embs_m_n[:,:,N_lats_spikes-N_shared:] + embs_m_img[:,:,N_lats_img-N_shared:])/2
-
-    z_s_neurons = embs_s_n[:,:,:N_lats_spikes-N_shared]
-    z_s_img = embs_s_img[:,:,:N_lats_img-N_shared]
-    z_s_shared = (embs_s_n[:,:,N_lats_spikes-N_shared:] + embs_s_img[:,:,N_lats_img-N_shared:])/2
-
-    z_m_tot = torch.cat((z_m_neurons,z_m_shared, z_m_img), dim=2) #pay attention to order
-    z_s_tot = torch.cat((z_s_neurons,z_s_shared, z_s_img), dim=2)
+    z_m_tot, z_s_tot = return_partitioned_latents(neural_embeds_m=embs_m_n, 
+                                                          image_embeds_m=embs_m_img,
+                               neural_embeds_s = embs_s_n, image_embeds_s =embs_s_img, 
+                               N_lats_spikes=N_lats_spikes, N_lats_img=N_lats_img,
+                               N_shared=N_shared)
     z_tot= net.sample(z_m_tot, z_s_tot, eps) 
 
     if Fourier:
@@ -497,71 +521,22 @@ def regressions(net, n_encode, n_decode, data_load, BATCH,
         z_m_tot_time = Time_lat_conv(z_m_tot, net.Bf)
         x_hat = net.decoder(z_m_tot_time[:,:,-(N_lats_img):])
         x_hat = x_hat.reshape(imgs.shape[0], TIME_POINTS, 36,36)
-        combine = n_decode.decoder_lambda(z_m_tot_time[:,:,:N_lats_spikes])
+     
+        regr_four  = regression_plot_helper(latent = z_m_tot_time[:,:,N_lats_img-N_shared], true= batch_angles)
 
-        z_image_concat = np.concatenate(z_m_tot_time[:,:,N_lats_img-N_shared].detach().numpy(), axis=0)
-        batch_angles_concat = np.concatenate(batch_angles.detach().numpy(), axis=0)
-
-        z = batch_angles_concat
-        
-        recon_z_const =np.stack((z_image_concat.squeeze(), np.ones(np.shape(batch_angles_concat))))
-        
-        regr_four2 = []
-        W = np.linalg.lstsq(recon_z_const.T, z.T)[0]
-        new = (W.T@(recon_z_const)).T
-        new = new.reshape(imgs.shape[0],TIME_POINTS,1)
-        
-        regr_four2.append(new)
-
-        regr_four.append(np.array(regr_four2).squeeze())
-        
-        regr_four  = np.array(regr_four)
         new_regr_four = np.transpose(regr_four, (1,2,0))
 
-
-        ###########################################  ############################
+        #######################################################################
         # for zoom
-        z_zoom_concat = np.concatenate(z_m_tot_time[:,:,N_lats_img].detach().numpy(), axis=0)
-        batch_zoom_concat = np.concatenate(batch_zoom.detach().numpy(), axis=0)
-
-        z_zoom = batch_zoom_concat
-        
-        recon_z_const_zoom =np.stack((z_zoom_concat.squeeze(), np.ones(np.shape(batch_zoom_concat))))
-        
-        regr_four2_zoom = []
-
-        W1 = np.linalg.lstsq(recon_z_const_zoom.T, z_zoom.T)[0]
-        new_zoom = (W1.T@(recon_z_const_zoom)).T
-        new_zoom = new_zoom.reshape(imgs.shape[0],TIME_POINTS,1)
-        
-        regr_four2_zoom.append(new_zoom)
-
-        regr_four_zoom.append(np.array(regr_four2_zoom).squeeze())
-        
-        regr_four_zoom  = np.array(regr_four_zoom)
-
+      
+        regr_four_zoom = regression_plot_helper(latent = z_m_tot_time[:,:,N_lats_img], true= batch_zoom)
 
         new_regr_four_zoom = np.transpose(regr_four_zoom, (1,2,0))
    
     #########################################
-        z_neuron_four = np.concatenate(z_m_tot_time[:, :, :N_lats_spikes-N_shared].detach().numpy(), axis=0)
-        gp2_four = np.concatenate(batch_neuronGP.detach().numpy(), axis=0)
+      
+        regr_n_only = regression_plot_helper(latent = z_m_tot_time[:, :, :N_lats_spikes-N_shared], true= batch_neuronGP)
 
-
-        z = gp2_four.squeeze()
-    
-        recon_z_const = np.stack((z_neuron_four.squeeze(), np.ones(np.shape(gp2_four.squeeze()))))
-
-        regr_n_only2 = []
-        W2 = np.linalg.lstsq(recon_z_const.T, z.T)[0]
-        new_n = (W2.T@(recon_z_const)).T
-        new_n = new_n.reshape(imgs.shape[0],TIME_POINTS,1)
-
-        regr_n_only2.append(new_n)
-
-        regr_n_only.append(np.array(regr_n_only2))
-
-        regr_n_only = np.array(regr_n_only)
         regr_n_only = regr_n_only.reshape(imgs.shape[0],TIME_POINTS,1)
 
     trial_number = trial_number
@@ -597,7 +572,121 @@ def regressions(net, n_encode, n_decode, data_load, BATCH,
     plt.show()
 
 
+def regressions_main_alternative(net_encode, net_decode,n_encode, n_decode, data_load, BATCH, 
+                current_batch = 1, 
+                trial_number = 1, cols = 5, batch_number = 10,
+                save= False, save_name='output', Fourier = True):
+    np.random.seed(my_seed)
+    images = []
+    angles = []
+    spikes = []
+    neuralRates = []
+    sharedGP = []
+    neuronGP = []
 
+    regr_four = []
+    regr_four_zoom = []
+    regr_n_only = []
+    zooms = []
+
+
+    for imgs, angle, spikes_n, neural, gp1, gp2, zoom in data_load:
+        images.append(imgs)
+        angles.append(angle)
+        spikes.append(spikes_n)
+        neuralRates.append(neural)
+        sharedGP.append(gp1)
+        neuronGP.append(gp2)
+        zooms.append(zoom)
+
+    current_batch = 0
+
+    batch_imgs = images[current_batch]
+    batch_angles = angles[current_batch]
+    batch_spikes = spikes[current_batch]
+    batch_neuronGP = neuronGP[current_batch]
+    batch_zoom = zooms[current_batch]
+
+    eps = Variable(torch.randn(imgs.shape[0],latent_dim), requires_grad=False)
+    eps_n = Variable(torch.randn(imgs.shape[0],latent_dim), requires_grad=False)
+  
+    
+    embs_m_n, embs_s_n = n_encode.forward(batch_spikes.float(), eps_n, Fourier = Fourier)
+    embs_m_img, embs_s_img= net_encode.forward(batch_imgs.float(), Fourier = Fourier) #only encoding the z mean and var in time domain
+
+
+    if Fourier:
+
+        embs_m_n = Fourer_lat_conv(embs_m_n, n_encode.spikeMeanFour) 
+        embs_s_n = Fourer_lat_conv(embs_s_n, n_encode.spikeVarFour) 
+    
+        embs_m_img = Fourer_lat_conv(embs_m_img, net_encode.encMeanFour) 
+        embs_s_img = Fourer_lat_conv(embs_s_img, net_encode.encVarFour)  
+        
+
+    
+    z_m_tot, z_s_tot = return_partitioned_latents(neural_embeds_m=embs_m_n, 
+                                                          image_embeds_m=embs_m_img,
+                               neural_embeds_s = embs_s_n, image_embeds_s =embs_s_img, 
+                               N_lats_spikes=N_lats_spikes, N_lats_img=N_lats_img,
+                               N_shared=N_shared)
+
+    z_tot= net_encode.sample(z_m_tot, z_s_tot, eps) 
+
+    if Fourier:
+        z_tot_time = Time_lat_conv(z_tot, net_encode.Bf)
+        z_m_tot_time = Time_lat_conv(z_m_tot, net_encode.Bf)
+        x_hat, _ = net_decode.forward(z_m_tot_time[:,:,-(N_lats_img):], batch_imgs)
+        x_hat = x_hat.reshape(imgs.shape[0], TIME_POINTS, 36,36)
+
+        regr_four  = regression_plot_helper(latent = z_m_tot_time[:,:,N_lats_img-N_shared], true= batch_angles)
+
+        new_regr_four = np.transpose(regr_four, (1,2,0))
+
+
+        #######################################################################
+        # for zoom
+        regr_four_zoom = regression_plot_helper(latent = z_m_tot_time[:,:,N_lats_img], true= batch_zoom)
+
+
+        new_regr_four_zoom = np.transpose(regr_four_zoom, (1,2,0))
+   
+    #########################################
+        regr_n_only = regression_plot_helper(latent = z_m_tot_time[:, :, :N_lats_spikes-N_shared], true= batch_neuronGP)
+
+        regr_n_only = regr_n_only.reshape(imgs.shape[0],TIME_POINTS,1)
+
+    trial_number = trial_number
+    n = cols
+    fig, axs = plt.subplots(3, n)
+    fig.set_figheight(12)
+    fig.set_figwidth(20)
+
+
+    for i in range(n):
+
+            axs[0,i].title.set_text('Shared')
+            axs[0,i].plot((new_regr_four[trial_number+i]), color='red')
+            axs[0,i].plot((batch_angles[trial_number+i][:]), color='blue')
+
+            axs[1,i].title.set_text('Behavior Independent')
+            axs[1,i].plot((new_regr_four_zoom[trial_number+i]),color='red')
+            axs[1,i].plot((batch_zoom[trial_number+i][:]), color='blue')
+
+            axs[2,i].title.set_text('Neural Independent')
+            axs[2,i].plot((regr_n_only[trial_number+i]),color='red')
+            axs[2,i].plot((batch_neuronGP[trial_number+i][:]), color='blue')
+
+
+            axs[0,i].spines['right'].set_visible(False)
+            axs[0,i].spines['top'].set_visible(False)
+            axs[1,i].spines['right'].set_visible(False)
+            axs[1,i].spines['top'].set_visible(False)
+            axs[2,i].spines['right'].set_visible(False)
+            axs[2,i].spines['top'].set_visible(False)
+
+
+    plt.show()
 
 
 class TimePointCustomDataset(Dataset):
