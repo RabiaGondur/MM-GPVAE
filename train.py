@@ -1075,9 +1075,14 @@ def train_model_mmgpvae(net, n_encode, n_decode, data_loader,
     return losses
 
 
-def train_model_mmgpvae_closed_no_flags(net, n_encode, n_decode, data_load,
+def train_mmgpvae_main(net, n_encode, n_decode, data_load,
                 EPOCH = 650, lr1=0.00016, lr2=0.000772, lr3=0.0088, 
                 Fourier = True, visualize_ELBO = True):
+    
+    '''
+    similar to other train_mmgpvae functions above except this function has no flags to run other
+    models like gpfa or gpvae
+    '''
 
     if torch.cuda.is_available():
         device = torch.device('cuda')
@@ -1101,8 +1106,6 @@ def train_model_mmgpvae_closed_no_flags(net, n_encode, n_decode, data_load,
     optimizer_n_encode = torch.optim.Adam(n_encode.parameters(), lr=lr2)
     optimizer_n_decode = torch.optim.Adam(n_decode.parameters(), lr=lr3) #.0088
 
-
-    
     losses = []
     max_grad_norm = 1
     for epoch in range(EPOCH):
@@ -1138,46 +1141,26 @@ def train_model_mmgpvae_closed_no_flags(net, n_encode, n_decode, data_load,
 
                 embs_m_n = Fourer_lat_conv(embs_m_n, n_encode.spikeMeanFour) 
                 embs_s_n = Fourer_lat_conv(embs_s_n, n_encode.spikeVarFour) 
-                
-            
-
-            if Fourier:
-
                 embs_m_img = Fourer_lat_conv(embs_m_img, net.encMeanFour) 
                 embs_s_img = Fourer_lat_conv(embs_s_img, net.encVarFour)  
                 
 
          
-            z_m_neurons = embs_m_n[:,:,:N_lats_spikes-N_shared] 
-            z_m_img = embs_m_img[:,:,:N_lats_img-N_shared] 
-        
-            z_m_shared = (embs_m_n[:,:,N_lats_spikes-N_shared:] + 
-                            embs_m_img[:,:,N_lats_img-N_shared:])/2
-            
-
-            z_s_neurons = embs_s_n[:,:,:N_lats_spikes-N_shared] 
-            z_s_img = embs_s_img[:,:,:N_lats_img-N_shared] 
-
-    
-            z_s_shared = (embs_s_n[:,:,N_lats_spikes-N_shared:] + 
-                            embs_s_img[:,:,N_lats_img-N_shared:])/2
-      
-            z_m_tot = torch.cat((z_m_neurons,z_m_shared, z_m_img), dim=2) 
-            z_s_tot = torch.cat((z_s_neurons,z_s_shared, z_s_img), dim=2) 
+            z_m_tot, z_s_tot = return_partitioned_latents(neural_embeds_m=embs_m_n, 
+                                                          image_embeds_m=embs_m_img,
+                               neural_embeds_s = embs_s_n, image_embeds_s =embs_s_img, 
+                               N_lats_spikes=N_lats_spikes, N_lats_img=N_lats_img,
+                               N_shared=N_shared)
     
             z_tot= net.sample(z_m_tot, z_s_tot, eps) 
           
             pen_term = -z_s_tot.sum([1,2])  
 
-
             if Fourier == True:
-               
                 K_cov = net.gp_make_cov(
                     eps=1e-2, wwnrm=net.wwnrm, nxcirc=net.nxcirc, Fourier=Fourier)
             if Fourier == False:
                 K_cov = net.gp_make_cov(eps=1e-2, Fourier=Fourier)
-
-
 
             gpNLL = gp_nll(K_cov, (z_m_tot+torch.exp(z_s_tot)), Fourier=Fourier)  
             
@@ -1189,14 +1172,17 @@ def train_model_mmgpvae_closed_no_flags(net, n_encode, n_decode, data_load,
                 lat_var_diag = calc_int_var(torch.exp(z_s_tot[:,:,:N_lats_spikes]), net.Bf)
           
                 int_var = torch.matmul(torch.square(n_decode.dec3.weight), lat_var_diag)
+
+                lambda_hat = n_decode.dec3(z_m_tot_time)
+                neural_loss = - ( -(torch.exp(lambda_hat + 0.5*torch.transpose(int_var,1,2))) -torch.lgamma(spikes + 1) +  lambda_hat * spikes).sum([1,2])
+
+                
             elif Fourier == False:
                 "NOT IMPLEMENTED"
+                neural_loss,_= n_decode.forward(z_m_tot_time,spikes)
 
-            lambda_hat = n_decode.dec3(z_m_tot_time)
-            neural_loss = - ( -(torch.exp(lambda_hat + 0.5*torch.transpose(int_var,1,2))) -torch.lgamma(spikes + 1) +  lambda_hat * spikes).sum([1,2])
 
             x_hat = net.decoder(z_tot_time[:,:,-(N_lats_img):])
-
             recon_term, mse = net.nll(new_data, x_hat) 
           
 
@@ -1216,7 +1202,6 @@ def train_model_mmgpvae_closed_no_flags(net, n_encode, n_decode, data_load,
             optimizer_n_encode.step()
             optimizer_n_decode.step()
     
-
         trainloss = trainloss/len(data_load)
         losses.append(trainloss)
         if epoch % 50 == 0:
@@ -1232,3 +1217,137 @@ def train_model_mmgpvae_closed_no_flags(net, n_encode, n_decode, data_load,
     return losses
 
 
+def train_mmgpvae_main_alternative(net_encode, net_decode, n_encode, n_decode, data_load,
+                EPOCH = 650, lr1=0.00016, lr2=0.00016,lr3=0.000772, lr4=0.0088, 
+                Fourier = True, visualize_ELBO = True):
+    
+
+    if torch.cuda.is_available():
+        device = torch.device('cuda')
+    else:
+        device = torch.device('cpu')
+
+    torch.manual_seed(my_seed)
+    
+    N_tot = N_lats_img + N_lats_spikes - N_shared
+
+    
+    for param in n_encode.parameters():
+        param.requires_grad = True
+    for param in n_decode.parameters():
+        param.requires_grad = True
+    for param in net_encode.parameters():
+        param.requires_grad = True
+    for param in net_decode.parameters():
+        param.requires_grad = True
+
+    
+    optimizer_behave_encode = torch.optim.Adam(net_encode.parameters(), lr=lr1)
+    optimizer_behave_decode = torch.optim.Adam(net_decode.parameters(), lr=lr2)
+    optimizer_n_encode = torch.optim.Adam(n_encode.parameters(), lr=lr3)
+    optimizer_n_decode = torch.optim.Adam(n_decode.parameters(), lr=lr4) 
+
+    losses = []
+    max_grad_norm = 1
+    for epoch in range(EPOCH):
+        trainloss = 0 
+        for data, label, spikes, neural_rates, gp1, gp2, zoom in data_load:
+            
+            optimizer_behave_encode.zero_grad()
+            optimizer_behave_decode.zero_grad()
+            optimizer_n_encode.zero_grad()
+            optimizer_n_decode.zero_grad()
+        
+            net_encode.train()
+            net_decode.train()
+            n_decode.train()
+            n_encode.train()
+
+            labels = label
+            new_data = data
+        
+          
+            eps = Variable(torch.randn(new_data.shape[0],N_lats_img ), requires_grad=False)
+            eps_n = Variable(torch.randn(new_data.shape[0], N_lats_spikes ), requires_grad=False)
+            new_data, eps = new_data.to(device), eps.to(device)
+            
+            embs_m_n, embs_s_n = n_encode.forward(spikes.float(), eps_n, Fourier = Fourier)
+            embs_m_img, embs_s_img= net_encode.forward(new_data.float(), Fourier = Fourier) #only encoding the z mean and var in time domain
+
+        
+            if Fourier:
+
+                embs_m_n = Fourer_lat_conv(embs_m_n, n_encode.spikeMeanFour) 
+                embs_s_n = Fourer_lat_conv(embs_s_n, n_encode.spikeVarFour) 
+                embs_m_img = Fourer_lat_conv(embs_m_img, net_encode.encMeanFour) 
+                embs_s_img = Fourer_lat_conv(embs_s_img, net_encode.encVarFour)  
+                
+            z_m_tot, z_s_tot = return_partitioned_latents(neural_embeds_m=embs_m_n, 
+                                                          image_embeds_m=embs_m_img,
+                               neural_embeds_s = embs_s_n, image_embeds_s =embs_s_img, 
+                               N_lats_spikes=N_lats_spikes, N_lats_img=N_lats_img,
+                               N_shared=N_shared)
+    
+            z_tot= net_encode.sample(z_m_tot, z_s_tot, eps) 
+          
+            pen_term = -z_s_tot.sum([1,2])  
+
+            if Fourier == True:
+                K_cov = net_encode.gp_make_cov(
+                    eps=1e-2, wwnrm=net_encode.wwnrm, nxcirc=net_encode.nxcirc, Fourier=Fourier)
+           
+            if Fourier == False:
+                K_cov = net_encode.gp_make_cov(eps=1e-2, Fourier=Fourier)
+
+            gpNLL = gp_nll(K_cov, (z_m_tot+torch.exp(z_s_tot)), Fourier=Fourier)  
+            
+            
+            if Fourier:
+                z_tot_time = Time_lat_conv(z_tot, net_encode.Bf)
+                
+                z_m_tot_time = Time_lat_conv(z_m_tot[:,:,:N_lats_spikes], net_encode.Bf) 
+                lat_var_diag = calc_int_var(torch.exp(z_s_tot[:,:,:N_lats_spikes]), net_encode.Bf)
+          
+                int_var = torch.matmul(torch.square(n_decode.dec3.weight), lat_var_diag)
+
+                lambda_hat = n_decode.dec3(z_m_tot_time)
+                neural_loss = - ( -(torch.exp(lambda_hat + 0.5*torch.transpose(int_var,1,2))) -torch.lgamma(spikes + 1) +  lambda_hat * spikes).sum([1,2])
+
+                
+            elif Fourier == False:
+                "NOT IMPLEMENTED"
+                neural_loss,_= n_decode.forward(z_m_tot_time,spikes)
+
+            _, recon_term = net_decode.forward(z=z_tot_time[:,:,-(N_lats_img):], x=new_data, Fourier= Fourier)
+            
+          
+
+            ELBO = (pen_term + neural_loss + recon_term+ gpNLL).sum() 
+         
+            loss = ELBO / BATCH
+            trainloss += loss.item()
+
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(n_decode.parameters(), max_grad_norm)
+            torch.nn.utils.clip_grad_norm_(n_encode.parameters(), max_grad_norm)
+            torch.nn.utils.clip_grad_norm_(net_encode.parameters(), max_grad_norm)
+            torch.nn.utils.clip_grad_norm_(net_decode.parameters(), max_grad_norm)
+            
+            optimizer_behave_encode.step()
+            optimizer_behave_decode.step()
+            optimizer_n_encode.step()
+            optimizer_n_decode.step()
+    
+        trainloss = trainloss/len(data_load)
+        losses.append(trainloss)
+        if epoch % 50 == 0:
+            print(f'Epoch {epoch} | Loss: {loss:.2f}')
+    if visualize_ELBO == True:
+        plt.figure(figsize=(5,3), dpi=150)
+        plt.title('ELBO')
+        plt.plot(losses[:])
+        plt.xlabel('Number of epochs')
+        plt.ylabel('Loss')
+        plt.show()
+        
+    return losses
