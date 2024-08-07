@@ -1134,7 +1134,7 @@ def train_mmgpvae_main(net, n_encode, n_decode, data_load,
             new_data, eps = new_data.to(device), eps.to(device)
             
             embs_m_n, embs_s_n = n_encode.forward(spikes.float(), eps_n, Fourier = Fourier)
-            embs_m_img, embs_s_img= net.forward(new_data.float(), eps, spikes, Fourier = Fourier) #only encoding the z mean and var in time domain
+            embs_m_img, embs_s_img= net.forward(new_data.float(), eps, Fourier = Fourier) #only encoding the z mean and var in time domain
 
         
             if Fourier:
