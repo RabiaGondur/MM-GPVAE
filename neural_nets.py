@@ -118,7 +118,6 @@ class GPVAE(nn.Module):
 
         return K_cov
     
-
     def gp_samp(self, K_cov, Fourier = False):
         if Fourier:
             print('ERROR')
@@ -126,17 +125,14 @@ class GPVAE(nn.Module):
             return np.array(np.random.multivariate_normal(np.zeros(self.N), K_cov, 1)).T 
             
     def forward(self, x, eps,  Fourier = False):
-
         zm, zs = self.encode(x)
-        
         return zm, zs
 
 ###############################################################################
 ## Neural Encoder
 ###############################################################################
 
-class Spike_Encode(nn.Module):
-    
+class Spike_Encode(nn.Module): 
     def __init__(self, zDim=N_lats_spikes, n_neurons= N_NEURONS, condthresh = 1e8, minlens= None, Fourier = False):
         super(Spike_Encode, self).__init__()
         torch.manual_seed(my_seed)
@@ -177,10 +173,6 @@ class Spike_Encode(nn.Module):
         zs = self.en5(spike) 
         return zm, zs
 
-    def get_z(self, zm, zs, eps, Fourier=False):
-        eps = torch.randn_like(zs) 
-        z_neurons = zm + eps * torch.exp(zs) 
-        return z_neurons
 
     def forward(self, spikes, eps, Fourier):
         zm, zs = self.encode(spikes)
@@ -301,7 +293,7 @@ class Behavior_Encoder_Decoder(nn.Module):
         else:
             return np.array(np.random.multivariate_normal(np.zeros(self.N), K_cov, 1)).T 
             
-    def forward(self, x, eps, spikes, Fourier = False):
+    def forward(self, x, eps, Fourier = False):
         zm, zs = self.encode(x)      
         return zm, zs
 
@@ -358,7 +350,6 @@ class Behavior_Encoder(nn.Module):
         zs = self.encFC2(x)
         return zm, zs
 
-
     def sample(self, zm, zs, eps):
         eps = torch.randn_like(zs)        
         z = zm + eps * torch.exp(zs) 
@@ -382,7 +373,7 @@ class Behavior_Encoder(nn.Module):
 ## Behavior Decoder 
 ###############################################################################
 class Behavior_Decoder(nn.Module):
-    def __init__(self,featureDim=256, zimg_Dim=N_shared, n_neurons = N_NEURONS,condthresh = 1e8, minlens= None, vy=100, Fourier = False):
+    def __init__(self,featureDim=256, zimg_Dim=N_shared, vy=100, Fourier = False):
         super(Behavior_Decoder, self).__init__()
         self.N = TIME_POINTS # time
         self.K = PIXEL  #pixels
@@ -396,8 +387,6 @@ class Behavior_Decoder(nn.Module):
         self.dexper2 = nn.Linear(featureDim, 512)
         self.dec2 = nn.Linear(512, 784)
         self.dec1 = nn.Linear(784, PIXEL)
-
-
 
     def decoder(self, z):
         x = F.elu(self.decFC2(z))
