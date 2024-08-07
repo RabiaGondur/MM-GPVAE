@@ -47,15 +47,11 @@ for data, labels, spikes, neural_rates, gp1, gp2, zoom in train_data_unbatched:
     break
 ###################################################################
 
-
-# net= Behavior_Encoder_Decoder(zimg_Dim=N_lats_img, 
-#                               Fourier = FOURIER,  minlens =10)
-
 net_encode= Behavior_Encoder(zimg_Dim=N_lats_img, 
                               Fourier = FOURIER,  minlens =10)
 
 net_decode= Behavior_Decoder(zimg_Dim=N_lats_img, 
-                              Fourier = FOURIER,  minlens =10)
+                              Fourier = FOURIER)
 
 n_encode = Spike_Encode(zDim=N_lats_spikes, Fourier = FOURIER,
                         minlens =10)
@@ -68,7 +64,6 @@ n_decode = Spike_Decode(meanrates=meanrates,
 trained = train_mmgpvae_main_alternative(net_encode, net_decode, n_encode, n_decode, loader_train,
                 EPOCH = TOTAL_EPOCH, lr1=0.00016, lr2=0.000124, lr3=0.000772, lr4=0.0088, 
                 Fourier = FOURIER, visualize_ELBO = True)
-#lr1=0.00016, lr2=0.00012,
 ###################################################################
 
 with torch.no_grad():
